@@ -1,0 +1,16 @@
+{
+    "checkProfilePublic": true,
+    "ignorePrivateProfile": true,
+
+    "checkProfileSet": true,
+    "ignoreNotSetProfile": true,
+
+    "checkAccountCreationDate": true,
+    "minimumDays": 90,
+
+    "checkLevel": true,
+    "minimumLevel": 5,
+
+    "checkOwnedGame": false,
+    "minimumGame": 3
+}
