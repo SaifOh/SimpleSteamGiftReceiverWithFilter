@@ -136,7 +136,7 @@ manager.on('newOffer', function(offer) {
                         else {
                             log.logError("Error accepting trade : " + err, accountFilename);
                             if(config.discord){
-                                sendMessage(`<@${config.discordUserId}> Error accepting trade : ` + err + "Please review manually", config.discord);
+                                sendMessage(`<@${config.discordUserId}>` + err + "Please review manually", config.discord);
 
                             }
                         }
