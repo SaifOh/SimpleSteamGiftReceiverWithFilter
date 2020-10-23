@@ -12,5 +12,10 @@
     "minimumLevel": 5,
 
     "checkOwnedGame": false,
-    "minimumGame": 3
+    "minimumGame": 3,
+	
+	"discord": false,
+	"discordHook": "changeme",
+    "discordUserId": "change"
+   
 }

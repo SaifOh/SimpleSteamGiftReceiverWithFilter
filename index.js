@@ -4,6 +4,8 @@ const SteamTotp = require('steam-totp');
 const request = require('request');
 const fs = require('fs');
 
+//const push = require('pushover-notifications');
+
 const config = require('./config.json');
 const log = require('./logger');
 // The account file name is requiered in parameter. Ex : node index.js example
@@ -18,20 +20,20 @@ const account = require(accountFile);
 
 let client = new SteamUser();
 let manager = new TradeOfferManager({
-	"steam": client, // Polling every 30 seconds is fine since we get notifications from Steam
-	"domain": "localhost", // Localhost
-	"language": "en" // We want English item descriptions
+    "steam": client, // Polling every 30 seconds is fine since we get notifications from Steam
+    "domain": "localhost", // Localhost
+    "language": "en" // We want English item descriptions
 });
 
 // Steam logon options
 let logOnOptions = {
-	"accountName": account.username,
-	"password": account.password,
-	"twoFactorCode": SteamTotp.getAuthCode(account.steamSharedSecret)
+    "accountName": account.username,
+    "password": account.password,
+    "twoFactorCode": SteamTotp.getAuthCode(account.steamSharedSecret)
 };
 
 if (fs.existsSync(account.username + '_polldata.json')) {
-	manager.pollData = JSON.parse(fs.readFileSync(account.username + '_polldata.json').toString('utf8'));
+    manager.pollData = JSON.parse(fs.readFileSync(account.username + '_polldata.json').toString('utf8'));
 }
 
 function startMessage() {
@@ -45,21 +47,21 @@ startMessage();
 client.logOn(logOnOptions);
 
 client.on('loggedOn', function() {
-	log.logGreen("Logged into Steam as " + logOnOptions.accountName, accountFilename);
+    log.logGreen("Logged into Steam as " + logOnOptions.accountName, accountFilename);
 });
 
 client.on('webSession', function(sessionID, cookies) {
-	manager.setCookies(cookies, function(err) {
-		if (err) {
+    manager.setCookies(cookies, function(err) {
+        if (err) {
             log.logError(err, accountFilename);
-			process.exit(1); // Fatal error since we couldn't get our API key
-		}
+            process.exit(1); // Fatal error since we couldn't get our API key
+        }
 
         log.log("API key: " + manager.apiKey, accountFilename);
         log.log("");
         //log.log(" Offer ID   | User ID64        | Item Name")
         log.log("------------------------------------------------------------------")
-	});
+    });
 });
 
 // Test
@@ -83,30 +85,61 @@ manager.on('newOffer', function(offer) {
         getUserLevel(id64, res).then(res => {
             if (config.checkLevel && res.level < config.minimumLevel) {
                 log.logError("#" + offer.id + "  " + id64 + "  User level is " + res.level + ". Min req is " + config.minimumLevel, accountFilename);
+                if(config.discord){
+                    sendMessage(`<@${config.discordUserId}> #` + offer.id + "  " + id64 + "  User level is  below the minimum level in config, please review manually", config.discord);
+
+                }
                 return;
             }
             getUserData(id64, res).then(res => {
                 var profilAge = Math.floor((Date.now()/1000 - res.creationdate) / 86400);
                 if (config.checkAccountCreationDate && profilAge < config.minimumDays) {
                     log.logError("#" + offer.id + "  " + id64 + "  Account created " + profilAge + " days ago. Min req is " + config.minimumDays, accountFilename);
+                    if(config.discord){
+                        sendMessage(`<@${config.discordUserId}> #` + offer.id + "  " + id64 + "  Account created " + profilAge + " days ago. Please review manually",  config.discord);
+
+                    }
                     return;
                 }
                 if (config.checkProfileSet && res.profileset != 1) {
                     log.logError("#" + offer.id + "  " + id64 + "  User don't have a Steam Community profile.", accountFilename);
+                    if(config.discord){
+                        sendMessage(`<@${config.discordUserId}> #` + offer.id + "  " + id64 + "  User don't have a Steam Community profile. Please review manually", config.discord);
+
+                    }
                     return;
                 }
                 if (config.checkProfilePublic && res.visibility != 3) {
                     log.logError("#" + offer.id + "  " + id64 + "  User profile is not public.", accountFilename);
+                    if(config.discord){
+                        sendMessage(`<@${config.discordUserId}> #` + offer.id + "  " + id64 + "  User profile is not public." + "Please Review manually", config.discord);
+
+                    }
                     return;
                 }
                 getOwnedGameCount(id64, res).then(res => {
                     if (config.checkOwnedGame && res.gameCount < config.minimumGame) {
                         log.logError("#" + offer.id + "  " + id64 + "  " + res.gameCount + " non F2P games owned. Min req is " + config.minimumGame, accountFilename);
+                        if(config.discord){
+                            sendMessage(`<@${config.discordUserId}> #` + offer.id + "  " + id64 + "  " + res.gameCount + " non F2P games owned. Please Review manually", config.discord);
+
+                        }
                         return;
                     }
                     offer.accept(function (err) {
-                        if (!err) log.log("#" + offer.id + "  " + id64 + "  " + itemNames.join(', '), accountFilename);
-                        else log.logError("Error accepting trade : " + err, accountFilename);
+                        if (!err) {
+                            log.log("#" + offer.id + "  " + id64 + "  " + itemNames.join(', '), accountFilename);
+                            if(config.discord){
+                                sendMessage(`Accepted trade #`+offer.id+" from steam ID: "+id64+ " item name: "+itemNames.join(', '), config.discord);
+                            }
+                        }
+                        else {
+                            log.logError("Error accepting trade : " + err, accountFilename);
+                            if(config.discord){
+                                sendMessage(`<@${config.discordUserId}> Error accepting trade : ` + err + "Please review manually", config.discord);
+
+                            }
+                        }
                     });
                 });
             });
@@ -169,7 +202,20 @@ function getOwnedGameCount(id64, res) {
         });
     });
 }
-
+function sendMessage(msg, discord = false, pushover = false) {
+    if (discord) {
+        request({
+            url: config.discordHook,
+            method: 'POST',
+            json: true,
+            body: {
+                content: msg,
+            },
+        }, (error, response, b) => {
+            //
+        });
+    }
+}
 manager.on('pollData', function(pollData) {
-	fs.writeFileSync(account.username + '_polldata.json', JSON.stringify(pollData));
+    fs.writeFileSync(account.username + '_polldata.json', JSON.stringify(pollData));
 });
